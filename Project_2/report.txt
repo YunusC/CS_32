@@ -1,0 +1,295 @@
+A.
+Created Set with a dummy object of type Item. Item contains three data members: m_item(value of node), m_next, and m_prev(pointers to proceeding and preceding items in list respectively). The dummy Item object created with each Set object contains an empty m_item and an m_next and m_prev that point to the first and last item in the list respectively. If the Set is empty, the dummy head pointer points to a nullptr and the dummy tail pointer points to the dummy object itself. 
+
+Empty Set
+
+ m_dummy. <-------
+ ______________   |
+| m_Item =     |  |
+|              |  |
+| m_next =  ------|--->nullptr
+| m_prev =  ------|
+|______________|
+
+Not Empty Set
+
+m_dummy
+ ______________     ______________    ______________   ______________ 
+| m_Item =     |   | m_Item =     |  | m_Item =     | | m_Item =     | 
+|              |   |              |  |              | |              |
+| m_next = ------> | m_next = -----> | m_next = ----->| m_next = ----------->nullptr
+| m_prev = ------  | m_prev = -----| | m_prev = -----|| m_prev = -------|
+|______________| | |______________|| |______________|||______________|  |     
+                 |         ^       |          ^       |       ^         |
+      Nullptr<---|_________|_______|          |_______|_______|_________|
+                 |         |_________________________|        |         
+                 |____________________________________________|
+                 
+
+B.
+ 
+Set& operator=(const Set&)
+{
+if the two Sets are the same set
+	return set as it is
+Call destruct function
+Call copy function
+}
+~Set()
+{
+Call destruct function
+}
+bool empty() const
+{
+If the dummy head pointer doesn't point to anything
+	return true
+If it does point to an Item
+	return false
+}
+int size() const
+{
+Initialize a counting variable to 0
+Repeatedly iterate through the list
+	add 1 to the counting variable
+Return the counting variable
+}
+bool insert(const ItemType& value)
+{
+Repeatedly iterate through the list
+	if the value exists in the list
+		return false
+Insert in the value using function tailInsert
+Return true
+}
+bool erase(const ItemType& value)
+{
+repeatedly iterate through the list
+	if we find the item that matches value 
+		if the item is the first in the list
+			set the head pointer to the item that the chosen item pointed to
+		if item is not first in the list
+			set the next pointer of the previous item to the item after the chosen item
+		if item is last in the list
+			set the tail pointer of the list to the item before the chosen item
+			if the item is the last and first item in the list(the only item)
+				set the tail pointer pointing to the dummy Item object itself
+		if the item is not last in the list            
+			set the prev pointer of the next item to the prev pointer of the chosen item
+		delete x
+		Return true
+Return false
+}
+
+bool contains(const ItemType& value) const
+{
+Repeatedly iterate through the list
+	if the value is found
+		return true
+Return false
+}
+bool get(int pos, ItemType& value) const
+{
+Repeatedly iterate through the list
+	create a counter variable
+		repeatedly iterate through list again
+			if we reach an Item value in the second loop that is lesser than the Item value in the first loop
+				increment the counting variable
+		if the counting variable equals the pos parameter
+			set value equal to the first loop Item value
+			return true
+Return false
+}
+void swap(Set& other)
+{
+Create variable temp from current Set
+have current set copy other
+Have other copy temp
+}
+
+void tailInsert(const ItemType& value)
+{
+Create a new Item
+Link the previous pointer of the new Item to the item the tail pointer points to
+If new Item is going to be the first item in the list
+	set the previous pointer of new Item to a nullptr
+Set the next pointer of the last Item in the list to the new Item
+Set the tail pointer to the new Item
+Set the next pointer of the new Item to nullptr
+Assign the given value to the new Item
+}
+void copy(const Set&)
+{
+If the source set is empty
+	return
+Iterate through the list
+	tailInsert every item from the source Set to the new Set
+}
+void destruct()
+{
+Iterate through the list
+	deallocate every Item in the list
+}
+
+C.
+ void test() //test std::strings
+{
+    Set ss;
+    assert(ss.insert("roti")); //check insert
+    assert(ss.insert("pita"));
+    assert(ss.size() == 2); //check size
+    assert(ss.contains("pita"));//check contains
+    ItemType x = "laobing";
+    assert(ss.get(0, x)  &&  x == "pita"); //check get
+    assert(ss.get(1, x)  &&  x == "roti"); //check get
+    
+    Set s;
+}
+
+ void a() //test std::strings
+{
+    Set s;
+    assert(s.empty());
+    ItemType x = "arepa";
+    assert( !s.get(42, x)  &&  x == "arepa"); // x unchanged by get failure
+    s.insert("chapati");
+    assert(s.size() == 1);
+    assert(s.get(0, x)  &&  x == "chapati");
+
+    Set ss;
+    assert(ss.empty());
+    ss.insert("lavash");
+    ss.insert("roti");
+    ss.insert("chapati");
+    ss.insert("injera");
+    ss.insert("roti");
+    ss.insert("matzo");
+    ss.insert("injera");
+    assert(ss.size() == 5);  // duplicate "roti" and "injera" were not added
+    string xy;
+    ss.get(0, xy);
+    assert(ss.contains("chapati"));
+    assert(xy == "chapati");  // "chapati" is greater than exactly 0 items in ss
+    ss.get(4, xy);
+    assert(xy == "roti");  // "roti" is greater than exactly 4 items in ss
+    ss.get(2, xy);
+    assert(xy == "lavash");  // "lavash" is greater than exactly 2 items in ss
+ 
+    swap(s,ss);
+    assert(s.size() == 5);
+    assert(ss.size() == 1);
+    assert(!ss.erase("arepa"));
+    assert(ss.erase("chapati"));
+    cout << ss.size() << endl;
+    assert(ss.empty());
+    cout << "Passed all tests" << endl;
+}
+
+void b()
+{
+    Set ss;
+    assert(ss.empty());
+    ss.insert("lavash");
+    ss.insert("roti");
+    ss.insert("chapati");
+    
+    Set s;
+    s.insert("injera");
+    s.insert("rotis");
+    s.insert("matzo");
+    s.insert("injeras");
+    
+    Set x;
+    unite(ss,s,x);
+    x.dump();
+    
+    Set a;
+    a.insert("lavash");
+    a.insert("roti");
+    a.insert("chapati");
+    a.swap(a); //check swap when both parameters are equal
+    assert(a.size() == 3);
+    
+    a = a; //check assignment operator when both original and source are the same Set
+    assert(a.size() == 3);
+}
+
+/*
+void testULS() //test unsigned long
+{
+    Set uls;
+    assert(uls.insert(10)); //check insert
+    assert(uls.insert(20)); //check insert
+    assert(uls.size() == 2); //check size
+    assert(uls.contains(20)); //check contains
+    
+    Set s;
+    assert(s.empty()); //check empty
+    assert(s.insert(1)); //check insert
+    assert(!s.insert(1)); //check insert if value already exists in list
+    assert(s.insert(2));
+    assert(s.insert(3));
+    assert(s.insert(4));
+    assert(s.size() == 4); //check size
+    ItemType y = 55;
+    assert(s.get(2,y) && y == 3); //check get
+    assert(!s.get(4,y) && y == 3); //check get with out of scope parameter
+    
+    s.swap(uls);
+    s.swap(uls);
+    
+    ItemType x = 30;
+    assert(uls.get(0, x)  &&  x == 10); //check get
+    assert(uls.get(1, x)  &&  x == 20);
+    assert(!uls.get(2, x)  &&  x == 20); //check get with out of scope parameter
+    
+    Set a;
+    assert(a.empty()); //check empty
+    assert(a.insert(1)); //check insert
+    assert(a.erase(1)); //check erase
+    assert(a.empty()); //check empty
+    assert(a.insert(2)); //check insert
+    assert(a.contains(2)); //check contains
+    
+    Set b, c; //check swap on empty sets
+    b.swap(c);
+    c.swap(b);
+    
+    assert(b.insert(1));
+    assert(b.insert(2));
+    assert(b.insert(3));
+    assert(b.insert(4));
+    assert(b.insert(5));
+    assert(b.size()==5);
+    
+    assert(c.insert(2));
+    assert(c.insert(3));
+    assert(c.size()==2);
+    
+    subtract(b,c,b); //check subtract when s1 and result are the same
+    b.dump();
+    assert(b.size()==3);
+    
+    unite(b,c,c); //check unite when s2 and result are the same
+    c.dump();
+    assert(c.size()==5);
+    
+    unite(c,c,c); //check unite when all parameters are the same
+    c.dump();
+    assert(c.size()==5);
+    
+    subtract(c,c,c); //check subtract when all parameters are the same
+    c.dump();
+    assert(c.size()==0);
+}
+*/
+
+int main()
+{
+    test();
+    a();
+    b();
+    //testULS();
+    cerr << "Passed all tests" << endl;
+}
+
+
