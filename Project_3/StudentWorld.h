@@ -22,11 +22,12 @@ class StudentWorld : public GameWorld
 {
 public:
     StudentWorld(std::string assetPath);
+    ~StudentWorld();
     virtual int init();
     virtual int move();
     virtual void cleanUp();
     void levelCompleted(){m_levelComplete = true;};
-    void deadCitizen(){m_numOfCitizens--;};
+    void decreaseCitizens(){m_numOfCitizens--;};
     void failLevel(){m_levelFailed = true;};
     void destroy(Object* x);
     bool determineIntersecting(Object* x, double a, double b);
@@ -37,6 +38,7 @@ public:
     void saveOverlap(Object* a);
     void infectOverlap(Object* a);
     void createFlames(Object* a, Direction dir);
+    void createLandmine();
     void activateLandmine(Object* a);
     Penelope* p(){return m_p;};
     

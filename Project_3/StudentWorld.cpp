@@ -17,8 +17,17 @@ StudentWorld::StudentWorld(string assetPath)
 {
 }
 
+StudentWorld::~StudentWorld()
+{
+    cleanUp();
+}
+
 int StudentWorld::init()
 {
+    if(m_levelNum > '6')
+    {
+        return GWSTATUS_PLAYER_WON;
+    }
     Object* newObject;
     for(int x = 0;x < LEVEL_WIDTH;x++)
     {
@@ -49,9 +58,7 @@ int StudentWorld::move()
         playSound(SOUND_LEVEL_FINISHED);
         return GWSTATUS_FINISHED_LEVEL;
     }
-    getKey(m_key);
-    m_p->doSomething(m_key);
-    m_key = -1;
+    m_p->doSomething();
     m_currObject = m_objects.begin();
     while(m_currObject != m_objects.end())
     {
@@ -77,25 +84,24 @@ int StudentWorld::move()
     m_gameStatStream << setw(6) << getScore() << "  Level:";
     m_gameStatStream.fill(' ');
     m_gameStatStream << setw(3) << m_levelNum << "  Lives:" << setw(3) << getLives();
-    m_gameStatStream << "   Vacc:" << setw(3) << m_p->numOfVaccines();
-    m_gameStatStream << "   Flames:" << setw(3) << m_p->numOfFlames();
-    m_gameStatStream << "   Mines:" << setw(3) << m_p->numOfLandmines();
-    m_gameStatStream << "   Infected:" << setw(3) << m_p->infectionCount();
+    m_gameStatStream << "  Vacc:" << setw(3) << m_p->numOfVaccines();
+    m_gameStatStream << "  Flames:" << setw(3) << m_p->numOfFlames();
+    m_gameStatStream << "  Mines:" << setw(3) << m_p->numOfLandmines();
+    m_gameStatStream << "  Infected:" << setw(3) << m_p->infectionCount();
     m_gameStats = "";
     setGameStatText("");
     m_gameStats = m_gameStatStream.str();
-    cout << m_gameStats << endl;
     setGameStatText(m_gameStats);
     return GWSTATUS_CONTINUE_GAME;
 }
 
 void StudentWorld::cleanUp()
 {
+    m_currObject = m_objects.begin();
     if(m_p == nullptr && m_currObject == m_objects.end())
         return;
     delete m_p;
     m_p = nullptr;
-    m_currObject = m_objects.begin();
     while(!m_objects.empty() && m_currObject != m_objects.end())
     {
         delete (*m_currObject);
@@ -124,35 +130,35 @@ Object* StudentWorld::level(int x, int y)
             case Level::empty:
                 break;
             case Level::smart_zombie:
-                return new smartZombies(IID_ZOMBIE,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new smartZombies(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::dumb_zombie:
-                return new dumbZombies(IID_ZOMBIE,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new dumbZombies(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::player:
-                m_p = new Penelope(IID_PLAYER,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                m_p = new Penelope(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::exit:
-                return new Exit(IID_EXIT,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,1,0,this);
+                return new Exit(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::wall:
-                return new Wall(IID_WALL,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new Wall(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::pit:
-                return new Pit(IID_PIT,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new Pit(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::citizen:
                 m_numOfCitizens++;
-                return new Citizens(IID_CITIZEN,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new Citizens(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::landmine_goodie:
-                return new Landmines(IID_LANDMINE_GOODIE,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new Landmines(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::vaccine_goodie:
-                return new Vaccines(IID_VACCINE_GOODIE,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new Vaccines(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
             case Level::gas_can_goodie:
-                return new Gas(IID_GAS_CAN_GOODIE,x*SPRITE_WIDTH,y*SPRITE_HEIGHT,0,0,0,this);
+                return new Gas(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
                 // etc…
         }
@@ -197,7 +203,7 @@ bool StudentWorld::determineIntersecting(Object* x, double a, double b)
             return true;
         i++;
     }
-    if(blockMovement(a,b,x, m_p))
+    if(blockMovement(a,b,x,m_p))
         return true;
     return false;
 }
@@ -219,6 +225,8 @@ void StudentWorld::killOverlap(Object* a)
 {
     set<Object*>::iterator i;
     i = m_objects.begin();
+    if(overlap(0,0,a,m_p))
+        m_p->destroy();
     while(i != m_objects.end())
     {
         if(overlap(0,0,a,*i) && (*i)->canDie())
@@ -243,6 +251,8 @@ void StudentWorld::infectOverlap(Object* a)
 {
     set<Object*>::iterator i;
     i = m_objects.begin();
+    if(overlap(0,0,a,m_p))
+        m_p->infect();
     while(i != m_objects.end())
     {
         if(overlap(0,0,a,*i) && (*i)->canBeInfected())
@@ -255,6 +265,8 @@ bool StudentWorld::isOverlapping(Object* a)
 {
     set<Object*>::iterator x;
     x = m_objects.begin();
+    if(overlap(0,0,a,m_p))
+        return true;
     while(x != m_objects.end())
     {
         if(overlap(0,0,a,*x) && (*x)->canOverlap())
@@ -300,21 +312,23 @@ void StudentWorld::createFlames(Object* a, Direction dir)
         switch(dir)
         {
             case Character::up:
-                m_objects.insert(new Flames(IID_FLAME,a->getX(),a->getY()+i*SPRITE_HEIGHT,0,0,0,this));
+                m_objects.insert(new Flames(a->getX(),a->getY()+i*SPRITE_HEIGHT,this));
                 break;
             case Character::down:
-                m_objects.insert(new Flames(IID_FLAME,a->getX(),a->getY()-i*SPRITE_HEIGHT,0,0,0,this));
+                m_objects.insert(new Flames(a->getX(),a->getY()-i*SPRITE_HEIGHT,this));
                 break;
             case Character::left:
-                m_objects.insert(new Flames(IID_FLAME,a->getX()-i*SPRITE_WIDTH,a->getY(),0,0,0,this));
+                m_objects.insert(new Flames(a->getX()-i*SPRITE_WIDTH,a->getY(),this));
                 break;
             case Character::right:
-                m_objects.insert(new Flames(IID_FLAME,a->getX()+i*SPRITE_WIDTH,a->getY(),0,0,0,this));
+                m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY(),this));
                 break;
         }
         i++;
     }
 }
+
+void StudentWorld::createLandmine(){m_objects.insert(new armedLandmine(m_p->getX(), m_p->getY(),this));}
 
 void StudentWorld::activateLandmine(Object* a)
 {
@@ -332,7 +346,7 @@ void StudentWorld::activateLandmine(Object* a)
                 else
                     x++;
             }
-            m_objects.insert(new Flames(IID_FLAME,a->getX()+i*SPRITE_WIDTH,a->getY()+j*SPRITE_HEIGHT,0,0,0,this));
+            m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY()+j*SPRITE_HEIGHT,this));
         }
-    m_objects.insert(new Pit(IID_PIT,a->getX(),a->getY(),0,0,0,this));
+    m_objects.insert(new Pit(a->getX(),a->getY(),this));
 }

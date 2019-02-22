@@ -3,6 +3,7 @@
 
 #include "GraphObject.h"
 #include "StudentWorld.h"
+#include "GameConstants.h"
 #include <iostream>
 // Students:  Add code to this file, Actor.cpp, StudentWorld.h, and StudentWorld.cpp
 
@@ -11,7 +12,7 @@ class Object:public GraphObject
 {
 public:
    // Object(int imageID, double startX, double startY, StudentWorld* sW, Direction dir, int depth, double size);
-    Object(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):GraphObject(imageID,startX,startY,dir,depth,size), m_studentWorld(sW), m_exists(true){};
+    Object(int imageID, double startX, double startY, int depth, StudentWorld* sW):GraphObject(imageID,startX,startY,right,depth,1.0), m_studentWorld(sW), m_exists(true){};
     virtual void doSomething(){return;};
     StudentWorld* studentWorld(){return m_studentWorld;};
     void destroy();
@@ -23,7 +24,7 @@ public:
     virtual bool canBeInfected(){return false;};
     virtual void infect(){};
     virtual void save(){};
-    int tickCounter(){return m_tickCounter;} const;
+    int tickCounter(){return m_tickCounter;};
     void increaseTickCounter(){m_tickCounter++;};
     void resetTickCounter(){m_tickCounter=0;};
 private:
@@ -35,7 +36,7 @@ private:
 class Wall:public Object
 {
 public:
-    Wall(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, right, 0, size, sW){};
+    Wall(double startX, double startY, StudentWorld* sW):Object(IID_WALL, startX, startY, 0, sW){};
     virtual bool canMoveThrough(){return false;};
     virtual bool canOverlap(){return false;};
 private:
@@ -44,7 +45,7 @@ private:
 class Exit:public Object
 {
 public:
-    Exit(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, right, 1, size, sW){};
+    Exit(double startX, double startY, StudentWorld* sW):Object(IID_EXIT, startX, startY, 1, sW){};
     virtual void doSomething();
 private:
 };
@@ -52,7 +53,7 @@ private:
 class Pit:public Object
 {
 public:
-    Pit(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, right, 0, size, sW){};
+    Pit(double startX, double startY, StudentWorld* sW):Object(IID_PIT, startX, startY, 0, sW){};
     virtual void doSomething();
 private:
 };
@@ -60,11 +61,13 @@ private:
 class Character:public Object
 {
 public:
-    Character(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, dir, depth, size, sW){};
+    Character(int imageID, double startX, double startY, int depth, StudentWorld* sW):Object(imageID, startX, startY, depth, sW){};
     void move(Direction dir);
     void setMoveSpeed(int moveSpeed){m_moveSpeed = moveSpeed;};
     virtual bool canMoveThrough(){return false;};
     virtual bool canDie(){return true;};
+    void moveToPenelope(){};
+    void randomMovement(){};
 private:
     bool canMove();
     double m_moveSpeed;
@@ -73,9 +76,8 @@ private:
 class nonInfected:public Character
 {
 public:
-    nonInfected(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Character(imageID, startX, startY, dir, depth, size, sW)
+    nonInfected(int imageID, double startX, double startY, int depth, StudentWorld* sW):Character(imageID, startX, startY, depth, sW), m_infectionCount(0), m_infected(false)
     {
-        setMoveSpeed(4);
     };
     int infectionCount(){return m_infectionCount;};
     virtual bool canBeInfected(){return true;};
@@ -93,11 +95,9 @@ private:
 class Penelope:public nonInfected
 {
 public:
-    Penelope(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):nonInfected(imageID, startX, startY, dir, depth, size, sW)
-    {
-        m_numOfFlames = 0;m_numOfLandmines = 0;m_numOfVaccines = 0;
-    };
-    void doSomething(int key);
+    Penelope(double startX, double startY, StudentWorld* sW):nonInfected(IID_PLAYER, startX, startY, 0, sW)
+    {m_numOfFlames = 0;m_numOfLandmines = 0;m_numOfVaccines = 0;setMoveSpeed(4);};
+    virtual void doSomething();
     int numOfFlames(){return m_numOfFlames;};
     int numOfLandmines(){return m_numOfLandmines;};
     int numOfVaccines(){return m_numOfVaccines;};
@@ -116,68 +116,74 @@ private:
 class Citizens:public nonInfected
 {
 public:
-    Citizens(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):nonInfected(imageID, startX, startY, dir, depth, size, sW){};
+    Citizens(double startX, double startY, StudentWorld* sW):nonInfected(IID_CITIZEN, startX, startY, 0, sW){setMoveSpeed(2);};
+    ~Citizens();
     virtual bool canBeSaved(){return true;};
     virtual void save();
+    void moveAwayFromZombies();
 private:
-    
 };
 
 class Zombies:public Character
 {
 public:
-    Zombies(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Character(imageID, startX, startY, dir, depth, size, sW)
-    {
-        setMoveSpeed(1);
-    };
+    Zombies(double startX, double startY, StudentWorld* sW):Character(IID_ZOMBIE, startX, startY, 0, sW)
+    {setMoveSpeed(1);};
+    void vomit();
 private:
 };
 
 class smartZombies:public Zombies
 {
 public:
-    smartZombies(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Zombies(imageID, startX, startY, dir, depth, size, sW){};
+    smartZombies(double startX, double startY, StudentWorld* sW):Zombies(startX, startY, sW){};
 };
 
 class dumbZombies:public Zombies
 {
 public:
-    dumbZombies(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Zombies(imageID, startX, startY, dir, depth, size, sW){};
+    dumbZombies(double startX, double startY, StudentWorld* sW):Zombies(startX, startY, sW){};
     virtual void doSomething();
 };
 
 class Items:public Object
 {
 public:
-    Items(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, dir, 1, size, sW){};
+    Items(int imageID, double startX, double startY, StudentWorld* sW):Object(imageID, startX, startY, 0, sW){};
+    virtual void doSomething();
     bool pickedUp();
+private:
+    virtual void whenPickedUp()=0;
 };
 
 class Gas:public Items
 {
 public:
-    Gas(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Items(imageID, startX, startY, dir, depth, size, sW){};
-    virtual void doSomething();
+    Gas(double startX, double startY, StudentWorld* sW):Items(IID_GAS_CAN_GOODIE, startX, startY, sW){};
+private:
+     virtual void whenPickedUp();
 };
 
 class Vaccines:public Items
 {
 public:
-    Vaccines(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Items(imageID, startX, startY, dir, depth, size, sW){};
-    virtual void doSomething();
+    Vaccines(double startX, double startY, StudentWorld* sW):Items(IID_VACCINE_GOODIE, startX, startY, sW){};
+private:
+    virtual void whenPickedUp();
 };
 
 class Landmines:public Items
 {
 public:
-    Landmines(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Items(imageID, startX, startY, right, 1, size, sW){};
-    virtual void doSomething();
+    Landmines(double startX, double startY, StudentWorld* sW):Items(IID_LANDMINE_GOODIE, startX, startY, sW){};
+private:
+    virtual void whenPickedUp();
 };
 
 class armedLandmine:public Object
 {
 public:
-    armedLandmine(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, dir, depth, size, sW){};
+    armedLandmine(double startX, double startY, StudentWorld* sW):Object(IID_LANDMINE, startX, startY, 0, sW){};
     virtual void doSomething();
 private:
 };
@@ -185,7 +191,7 @@ private:
 class Flames:public Object
 {
 public:
-    Flames(int imageID, double startX, double startY, Direction dir, int depth, double size, StudentWorld* sW):Object(imageID, startX, startY, dir, depth, size, sW){};
+    Flames(double startX, double startY, StudentWorld* sW):Object(IID_FLAME, startX, startY, 0, sW){};
     virtual void doSomething();
 private:
 };

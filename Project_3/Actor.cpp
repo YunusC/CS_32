@@ -1,10 +1,7 @@
 #include "Actor.h"
 
 // Students:  Add code to this file, Actor.h, StudentWorld.h, and StudentWorld.cpp
-void Object::destroy()
-{
-    m_exists = false;
-}
+void Object::destroy(){m_exists = false;}
 
 void Exit::doSomething()
 {
@@ -18,10 +15,7 @@ void Exit::doSomething()
     
 }
 
-void Pit::doSomething()
-{
-    studentWorld()->killOverlap(this);
-}
+void Pit::doSomething(){studentWorld()->killOverlap(this);}
 
 void Character::move(Direction dir)
 {
@@ -50,15 +44,17 @@ void Character::move(Direction dir)
     }
 }
 
-void Penelope::doSomething(int key)
+void Penelope::doSomething()
 {
     increaseInfection();
-    if(!isAlive())
+    if(!exists())
     {
         studentWorld()->failLevel();
         studentWorld()->playSound(SOUND_PLAYER_DIE);
         return;
     }
+    int key;
+    studentWorld()->getKey(key);
     switch(key)
     {
         case KEY_PRESS_LEFT:
@@ -98,17 +94,19 @@ void Penelope::useFlames()
 {
     if(m_numOfFlames <= 0)
         return;
+    m_numOfFlames--;
     studentWorld()->createFlames(this, this->getDirection());
     studentWorld()->playSound(SOUND_PLAYER_FIRE);
-    m_numOfFlames--;
 }
 
 void Penelope::useLandmines()
 {
     if(m_numOfLandmines <= 0)
         return;
-    
+    studentWorld()->createLandmine();
 }
+
+Citizens::~Citizens(){studentWorld()->decreaseCitizens();}
 
 void Citizens::save()
 {
@@ -116,6 +114,7 @@ void Citizens::save()
     studentWorld()->increaseScore(1000);
     destroy();
 }
+
 void dumbZombies::doSomething()
 {
     move(randInt(0,3)*90);
@@ -143,32 +142,10 @@ bool Items::pickedUp()
     return false;
 }
 
-void Gas::doSomething()
-{
-    if(pickedUp())
-    {
-        studentWorld()->p()->pickUpFlames();
-        destroy();
-    }
-}
-
-void Vaccines::doSomething()
-{
-    if(pickedUp())
-    {
-        studentWorld()->p()->pickUpVaccines();
-        destroy();
-    }
-}
-
-void Landmines::doSomething()
-{
-    if(pickedUp())
-    {
-        studentWorld()->p()->pickUpLandmines();
-        destroy();
-    }
-}
+void Items::doSomething(){if(pickedUp()){whenPickedUp();destroy();}}
+void Gas::whenPickedUp(){studentWorld()->p()->pickUpFlames();}
+void Landmines::whenPickedUp(){studentWorld()->p()->pickUpLandmines();}
+void Vaccines::whenPickedUp(){studentWorld()->p()->pickUpVaccines();}
 
 void armedLandmine::doSomething()
 {
