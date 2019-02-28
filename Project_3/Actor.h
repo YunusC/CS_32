@@ -12,7 +12,7 @@ class Object:public GraphObject
 {
 public:
    // Object(int imageID, double startX, double startY, StudentWorld* sW, Direction dir, int depth, double size);
-    Object(int imageID, double startX, double startY, int depth, StudentWorld* sW):GraphObject(imageID,startX,startY,right,depth,1.0), m_studentWorld(sW), m_exists(true){};
+    Object(int imageID, double startX, double startY, int depth, StudentWorld* sW):GraphObject(imageID,startX,startY,right,depth,1.0), m_studentWorld(sW), m_tickCounter(1), m_exists(true){};
     virtual void doSomething(){return;};
     StudentWorld* studentWorld(){return m_studentWorld;};
     void destroy();
@@ -24,12 +24,15 @@ public:
     virtual bool canBeInfected(){return false;};
     virtual void infect(){};
     virtual void save(){};
+    virtual void flameDestroy(){};
+    virtual void pitDestroy(){};
+    virtual bool isZombie(){return false;};
     int tickCounter(){return m_tickCounter;};
     void increaseTickCounter(){m_tickCounter++;};
-    void resetTickCounter(){m_tickCounter=0;};
+    void resetTickCounter(){m_tickCounter=1;};
 private:
     StudentWorld* m_studentWorld;
-    int m_tickCounter = 0;
+    int m_tickCounter;
     bool m_exists;
 };
 
@@ -62,12 +65,13 @@ class Character:public Object
 {
 public:
     Character(int imageID, double startX, double startY, int depth, StudentWorld* sW):Object(imageID, startX, startY, depth, sW){};
-    void move(Direction dir);
+    bool move(Direction dir);
     void setMoveSpeed(int moveSpeed){m_moveSpeed = moveSpeed;};
     virtual bool canMoveThrough(){return false;};
     virtual bool canDie(){return true;};
-    void moveToPenelope(){};
-    void randomMovement(){};
+    virtual void flameDestroy(){destroy();};
+    virtual void pitDestroy(){destroy();};
+    int directToObject(int prevDir, Object* a);
 private:
     bool canMove();
     double m_moveSpeed;
@@ -76,18 +80,17 @@ private:
 class nonInfected:public Character
 {
 public:
-    nonInfected(int imageID, double startX, double startY, int depth, StudentWorld* sW):Character(imageID, startX, startY, depth, sW), m_infectionCount(0), m_infected(false)
-    {
-    };
+    nonInfected(int imageID, double startX, double startY, int depth, StudentWorld* sW):Character(imageID, startX, startY, depth, sW), m_infectionCount(0), m_infected(false), m_cInfected(false){};
     int infectionCount(){return m_infectionCount;};
     virtual bool canBeInfected(){return true;};
     virtual void infect(){m_infected = true;};
     void disinfect(){m_infected = false;m_infectionCount = 0;};
-    bool isAlive(){if(m_alive == false)return true; return false;};
-    void increaseInfection(){if(m_infected == true)m_infectionCount++;if(m_infectionCount >= 500)m_alive=false;};
+    bool isCompleteInfected(){return m_cInfected;};
+    bool isInfected(){return m_infected;};
+    void increaseInfection(){if(m_infected == true)m_infectionCount++;if(m_infectionCount >= 500)m_cInfected=true;};
 private:
     void moveFast(Direction dir);
-    bool m_alive;
+    bool m_cInfected;
     bool m_infected;
     int m_infectionCount;
 };
@@ -118,42 +121,61 @@ class Citizens:public nonInfected
 public:
     Citizens(double startX, double startY, StudentWorld* sW):nonInfected(IID_CITIZEN, startX, startY, 0, sW){setMoveSpeed(2);};
     ~Citizens();
+    virtual void doSomething();
     virtual bool canBeSaved(){return true;};
     virtual void save();
-    void moveAwayFromZombies();
+    virtual void flameDestroy();
+    virtual void pitDestroy();
+    virtual void infect();
+    bool becomeZombie();
+    //void moveAwayFromZombies();
 private:
 };
 
 class Zombies:public Character
 {
 public:
-    Zombies(double startX, double startY, StudentWorld* sW):Character(IID_ZOMBIE, startX, startY, 0, sW)
+    Zombies(double startX, double startY, StudentWorld* sW):Character(IID_ZOMBIE, startX, startY, 0, sW), m_movePlan(0)
     {setMoveSpeed(1);};
-    void vomit();
+    bool vomit();
+    int movePlan(){return m_movePlan;};
+    void setNewMovePlan(int movePlan){m_movePlan = movePlan;};
+    virtual void determineNewPlan() = 0;
+    virtual void doSomething();
+    virtual bool isZombie(){return true;};
 private:
+    int m_movePlan;
 };
 
 class smartZombies:public Zombies
 {
 public:
     smartZombies(double startX, double startY, StudentWorld* sW):Zombies(startX, startY, sW){};
+    virtual void flameDestroy();
+    virtual void pitDestroy();
+    virtual void determineNewPlan();
 };
 
 class dumbZombies:public Zombies
 {
 public:
     dumbZombies(double startX, double startY, StudentWorld* sW):Zombies(startX, startY, sW){};
-    virtual void doSomething();
+    ~dumbZombies();
+    virtual void flameDestroy();
+    virtual void pitDestroy();
+    virtual void determineNewPlan();
 };
 
 class Items:public Object
 {
 public:
-    Items(int imageID, double startX, double startY, StudentWorld* sW):Object(imageID, startX, startY, 0, sW){};
+    Items(int imageID, double startX, double startY, StudentWorld* sW):Object(imageID, startX, startY, 1, sW){};
     virtual void doSomething();
+    virtual bool canDie(){return true;};
+    virtual void flameDestroy(){destroy();};
     bool pickedUp();
 private:
-    virtual void whenPickedUp()=0;
+    virtual void whenPickedUp() = 0;
 };
 
 class Gas:public Items
@@ -191,7 +213,15 @@ private:
 class Flames:public Object
 {
 public:
-    Flames(double startX, double startY, StudentWorld* sW):Object(IID_FLAME, startX, startY, 0, sW){};
+    Flames(double startX, double startY, Direction dir, StudentWorld* sW):Object(IID_FLAME, startX, startY, dir, sW){};
+    virtual void doSomething();
+private:
+};
+
+class Vomit:public Object
+{
+public:
+    Vomit(double startX, double startY, StudentWorld* sW):Object(IID_VOMIT, startX, startY, 0, sW){};
     virtual void doSomething();
 private:
 };

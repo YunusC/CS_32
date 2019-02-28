@@ -45,10 +45,10 @@ int StudentWorld::init()
 
 int StudentWorld::move()
 {
-    if(m_levelFailed == true)
+    if(!m_p->exists())
     {
+        playSound(SOUND_PLAYER_DIE);
         decLives();
-        m_levelFailed = false;
         return GWSTATUS_PLAYER_DIED;
     }
     if(m_levelComplete == true)
@@ -81,9 +81,16 @@ int StudentWorld::move()
     m_gameStatStream.clear();
     m_gameStatStream << "Score: ";
     m_gameStatStream.fill('0');
-    m_gameStatStream << setw(6) << getScore() << "  Level:";
+    if(getScore() < 0)
+    {
+        m_gameStatStream << '-' << setw(5) << -getScore();
+    }
+    else
+    {
+        m_gameStatStream << setw(6) << getScore();
+    }
     m_gameStatStream.fill(' ');
-    m_gameStatStream << setw(3) << m_levelNum << "  Lives:" << setw(3) << getLives();
+    m_gameStatStream << "  Level:" << setw(3) << m_levelNum << "  Lives:" << setw(3) << getLives();
     m_gameStatStream << "  Vacc:" << setw(3) << m_p->numOfVaccines();
     m_gameStatStream << "  Flames:" << setw(3) << m_p->numOfFlames();
     m_gameStatStream << "  Mines:" << setw(3) << m_p->numOfLandmines();
@@ -113,14 +120,20 @@ void StudentWorld::cleanUp()
 Object* StudentWorld::level(int x, int y)
 {
     Level lev(assetPath());
-    string a;
-    a += m_levelNum;
-    string levelFile = "level0"+a+".txt";
+    stringstream level;
+    level << m_levelNum;
+    string levelText = level.str();
+    string levelFile = "level0"+levelText+".txt";
     Level::LoadResult result = lev.loadLevel(levelFile);
     if (result == Level::load_fail_file_not_found)
-        cerr << "Cannot find level0"+a+".txt data file" << endl;
+    {
+        cerr << "Cannot find level0"+levelFile+".txt data file" << endl;
+        
+    }
     else if (result == Level::load_fail_bad_format)
+    {
         cerr << "Your level was improperly formatted" << endl;
+    }
     else if (result == Level::load_success)
     {
         cerr << "Successfully loaded level" << endl;
@@ -160,7 +173,6 @@ Object* StudentWorld::level(int x, int y)
             case Level::gas_can_goodie:
                 return new Gas(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
-                // etc…
         }
     }
     return nullptr;
@@ -221,16 +233,30 @@ bool StudentWorld::overlap(double x, double y, Object* a, Object* b)
     return false;
 }
 
-void StudentWorld::killOverlap(Object* a)
+void StudentWorld::pitOverlap(Object* a)
 {
     set<Object*>::iterator i;
     i = m_objects.begin();
     if(overlap(0,0,a,m_p))
-        m_p->destroy();
+        m_p->pitDestroy();
     while(i != m_objects.end())
     {
         if(overlap(0,0,a,*i) && (*i)->canDie())
-            (*i)->destroy();
+            (*i)->pitDestroy();
+        i++;
+    }
+}
+
+void StudentWorld::flameOverlap(Object* a)
+{
+    set<Object*>::iterator i;
+    i = m_objects.begin();
+    if(overlap(0,0,a,m_p))
+        m_p->flameDestroy();
+    while(i != m_objects.end())
+    {
+        if(overlap(0,0,a,*i) && (*i)->canDie())
+            (*i)->flameDestroy();
         i++;
     }
 }
@@ -259,6 +285,37 @@ void StudentWorld::infectOverlap(Object* a)
             (*i)->infect();
         i++;
     }
+}
+
+bool StudentWorld::canVomit(double x, double y, Object* a)
+{
+    set<Object*>::iterator i;
+    i = m_objects.begin();
+    bool canVomit = false;
+    if(overlap(x,y,a,m_p))
+    {
+        canVomit = true;
+    }
+    while(i != m_objects.end())
+    {
+        if(overlap(x,y,a,*i) && (*i)->canBeInfected())
+            canVomit = true;
+        i++;
+    }
+    if(canVomit && (1 == randInt(1,3)))
+    {
+        m_objects.insert(new Vomit(a->getX()+x,a->getY()+y,this));
+        return true;
+    }
+    return false;
+}
+
+void StudentWorld::createZombie(int zType, Object* a)
+{
+    if(1 <= zType && zType <= 3)
+        m_objects.insert(new smartZombies(a->getX(), a->getY(), this));
+    if(4 <= zType && zType <= 10)
+        m_objects.insert(new dumbZombies(a->getX(), a->getY(), this));
 }
 
 bool StudentWorld::isOverlapping(Object* a)
@@ -312,16 +369,16 @@ void StudentWorld::createFlames(Object* a, Direction dir)
         switch(dir)
         {
             case Character::up:
-                m_objects.insert(new Flames(a->getX(),a->getY()+i*SPRITE_HEIGHT,this));
+                m_objects.insert(new Flames(a->getX(),a->getY()+i*SPRITE_HEIGHT, 0, this));
                 break;
             case Character::down:
-                m_objects.insert(new Flames(a->getX(),a->getY()-i*SPRITE_HEIGHT,this));
+                m_objects.insert(new Flames(a->getX(),a->getY()-i*SPRITE_HEIGHT, 0, this));
                 break;
             case Character::left:
-                m_objects.insert(new Flames(a->getX()-i*SPRITE_WIDTH,a->getY(),this));
+                m_objects.insert(new Flames(a->getX()-i*SPRITE_WIDTH,a->getY(), 0, this));
                 break;
             case Character::right:
-                m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY(),this));
+                m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY(), 0, this));
                 break;
         }
         i++;
@@ -329,6 +386,51 @@ void StudentWorld::createFlames(Object* a, Direction dir)
 }
 
 void StudentWorld::createLandmine(){m_objects.insert(new armedLandmine(m_p->getX(), m_p->getY(),this));}
+
+void StudentWorld::createRandItem(Object* a)
+{
+    int x = 0;
+    int y = 0;
+    switch(randInt(0,3))
+    {
+        case 0:
+            x = 1;
+            break;
+        case 1:
+            y = 1;
+            break;
+        case 2:
+            x = -1;
+            break;
+        case 3:
+            y = -1;
+            break;
+    }
+    bool doesOverlap = false;
+    set<Object*>::iterator i;
+    i = m_objects.begin();
+    while(i != m_objects.end())
+    {
+        if(overlap(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,a,*i))
+            doesOverlap = true;
+        i++;
+    }
+    if(!doesOverlap)
+    {
+        switch(randInt(0,2))
+        {
+            case 0:
+                m_objects.insert(new Gas(a->getX()+SPRITE_WIDTH*x,a->getY()+SPRITE_HEIGHT*y,this));
+                break;
+            case 1:
+                m_objects.insert(new Vaccines(a->getX()+SPRITE_WIDTH*x,a->getY()+SPRITE_HEIGHT*y,this));
+                break;
+            case 2:
+                m_objects.insert(new Landmines(a->getX()+SPRITE_WIDTH*x,a->getY()+SPRITE_HEIGHT*y,this));
+                break;
+        }
+    }
+}
 
 void StudentWorld::activateLandmine(Object* a)
 {
@@ -346,7 +448,59 @@ void StudentWorld::activateLandmine(Object* a)
                 else
                     x++;
             }
-            m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY()+j*SPRITE_HEIGHT,this));
+            m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY()+j*SPRITE_HEIGHT, 90, this));
         }
     m_objects.insert(new Pit(a->getX(),a->getY(),this));
+}
+
+double StudentWorld::determineDistance(double x, double y, Object* a, Object* b)
+{
+    double deltaX = (a->getX()+x) - b->getX();
+    double deltaY = (a->getY()+y) - b->getY();
+    return (deltaX*deltaX + deltaY*deltaY);
+}
+
+Object* StudentWorld::closestZombie(double x, double y, Object* a)
+{
+    Object* closestObject = nullptr;
+    set<Object*>::iterator i;
+    i = m_objects.begin();
+    double minDistance = 6400;
+    double thisDistance = 0;
+    while(i != m_objects.end())
+    {
+        thisDistance = determineDistance(x, y, a, *i);
+        if((thisDistance <= minDistance) && ((*i)->isZombie()))
+        {
+            minDistance = thisDistance;
+            closestObject = (*i);
+        }
+        i++;
+    }
+    return closestObject;
+}
+
+Object* StudentWorld::closestNonInfected(Object* a)
+{
+    Object* closestObject = nullptr;
+    set<Object*>::iterator i;
+    i = m_objects.begin();
+    double minDistance = 6400;
+    double thisDistance = determineDistance(0, 0, a, m_p);
+    if(thisDistance <= 6400)
+    {
+        minDistance = thisDistance;
+        closestObject = m_p;
+    }
+    while(i != m_objects.end())
+    {
+        thisDistance = determineDistance(0, 0, a, *i);
+        if((thisDistance <= minDistance) && ((*i)->canBeInfected()))
+        {
+            minDistance = thisDistance;
+            closestObject = (*i);
+        }
+        i++;
+    }
+    return closestObject;
 }
