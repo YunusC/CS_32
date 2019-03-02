@@ -11,7 +11,6 @@ class StudentWorld;
 class Object:public GraphObject
 {
 public:
-   // Object(int imageID, double startX, double startY, StudentWorld* sW, Direction dir, int depth, double size);
     Object(int imageID, double startX, double startY, int depth, StudentWorld* sW):GraphObject(imageID,startX,startY,right,depth,1.0), m_studentWorld(sW), m_tickCounter(1), m_exists(true){};
     virtual void doSomething(){return;};
     StudentWorld* studentWorld(){return m_studentWorld;};
@@ -20,6 +19,7 @@ public:
     virtual bool canMoveThrough(){return true;};
     virtual bool canDie(){return false;};
     virtual bool canOverlap(){return true;};
+    virtual bool canFlameOverlap(){return true;};
     virtual bool canBeSaved(){return false;};
     virtual bool canBeInfected(){return false;};
     virtual void infect(){};
@@ -42,6 +42,7 @@ public:
     Wall(double startX, double startY, StudentWorld* sW):Object(IID_WALL, startX, startY, 0, sW){};
     virtual bool canMoveThrough(){return false;};
     virtual bool canOverlap(){return false;};
+    virtual bool canFlameOverlap(){return false;};
 private:
 };
 
@@ -50,6 +51,7 @@ class Exit:public Object
 public:
     Exit(double startX, double startY, StudentWorld* sW):Object(IID_EXIT, startX, startY, 1, sW){};
     virtual void doSomething();
+    virtual bool canFlameOverlap(){return false;};
 private:
 };
 
@@ -67,6 +69,7 @@ public:
     Character(int imageID, double startX, double startY, int depth, StudentWorld* sW):Object(imageID, startX, startY, depth, sW){};
     bool move(Direction dir);
     void setMoveSpeed(int moveSpeed){m_moveSpeed = moveSpeed;};
+    int moveSpeed(){return m_moveSpeed;};
     virtual bool canMoveThrough(){return false;};
     virtual bool canDie(){return true;};
     virtual void flameDestroy(){destroy();};
@@ -90,9 +93,9 @@ public:
     void increaseInfection(){if(m_infected == true)m_infectionCount++;if(m_infectionCount >= 500)m_cInfected=true;};
 private:
     void moveFast(Direction dir);
-    bool m_cInfected;
-    bool m_infected;
     int m_infectionCount;
+    bool m_infected;
+    bool m_cInfected;
 };
 
 class Penelope:public nonInfected

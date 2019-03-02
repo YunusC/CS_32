@@ -132,6 +132,8 @@ int Character::directToObject(int prevDir, Object* a)
 void Penelope::doSomething()
 {
     increaseInfection();
+    if(!exists())
+        return;
     if(isCompleteInfected())
     {
         destroy();
@@ -192,14 +194,16 @@ void Penelope::useLandmines()
 
 void Citizens::doSomething()
 {
+    if(!exists())
+        return;
     increaseInfection();
+    if(becomeZombie())
+        return;
     if(tickCounter() == 1)
     {
         increaseTickCounter();
         return;
     }
-    if(becomeZombie())
-        return;
     double distToP = studentWorld()->determineDistance(0, 0, this, studentWorld()->p());
     double distToZ = distToP + 1;
     Object* closestZombie = studentWorld()->closestZombie(0, 0, this);
@@ -223,12 +227,51 @@ void Citizens::doSomething()
             return;
         }
     }
-    if(distToZ <= 6400)
+    if(distToZ <= 6400 && closestZombie != nullptr)
     {
         double x = getX() - closestZombie->getX();
         if(x < 0) x = -x;
         double y = getY() - closestZombie->getY();
         if(y < 0) y = -y;
+        int prevDir;
+        if(y == 0)
+        {
+            setDirection(prevDir = randInt(0,1)*180 + 90);
+            if(!move(getDirection()))
+            {
+                if(prevDir == up)
+                setDirection(down);
+                if(prevDir == down)
+                    setDirection(up);
+                move(getDirection());
+                resetTickCounter();
+                return;
+            }
+            else
+            {
+                resetTickCounter();
+                return;
+            }
+        }
+        if(x == 0)
+        {
+            setDirection(prevDir = randInt(0,1)*180);
+            if(!move(getDirection()))
+            {
+                if(prevDir == right)
+                    setDirection(left);
+                if(prevDir == left)
+                    setDirection(right);
+                move(getDirection());
+                resetTickCounter();
+                return;
+            }
+            else
+            {
+                resetTickCounter();
+                return;
+            }
+        }
         int direction;
         if(getX() < closestZombie->getX())//1 is right; 2 is left
             direction = 2;
@@ -241,13 +284,13 @@ void Citizens::doSomething()
         switch(direction)
         {
             case -2:
-                if(x < y)
-                    if(!studentWorld()->determineIntersecting(this, 0, -2) && (distToZ < studentWorld()->determineDistance(0, -2, this, studentWorld()->closestZombie(0, -2, this))))
+                if(y < x)
+                    if(!studentWorld()->determineIntersecting(this, getX(), getY()-moveSpeed()) && (distToZ < studentWorld()->determineDistance(0, -2, this, studentWorld()->closestZombie(0, -2, this))))
                     {
                         move(down);
                         break;
                     }
-                if(!studentWorld()->determineIntersecting(this, -2, 0) && (distToZ < studentWorld()->determineDistance(-2, 0, this, studentWorld()->closestZombie(-2, 0, this))))
+                if(!studentWorld()->determineIntersecting(this, getX()-moveSpeed(), getY()) && (distToZ < studentWorld()->determineDistance(-2, 0, this, studentWorld()->closestZombie(-2, 0, this))))
                     {
                         move(left);
                         break;
@@ -255,12 +298,12 @@ void Citizens::doSomething()
                 break;
             case -1:
                 if(x < y)
-                    if(!studentWorld()->determineIntersecting(this, 0, -2) && (distToZ < studentWorld()->determineDistance(0, -2, this, studentWorld()->closestZombie(0, -2, this))))
+                    if(!studentWorld()->determineIntersecting(this, getX(), getY()-moveSpeed()) && (distToZ < studentWorld()->determineDistance(0, -2, this, studentWorld()->closestZombie(0, -2, this))))
                     {
                         move(down);
                         break;
                     }
-                if(!studentWorld()->determineIntersecting(this, 2, 0) && (distToZ < studentWorld()->determineDistance(2, 0, this, studentWorld()->closestZombie(2, 0, this))))
+                if(!studentWorld()->determineIntersecting(this, getX()+moveSpeed(), getY()) && (distToZ < studentWorld()->determineDistance(2, 0, this, studentWorld()->closestZombie(2, 0, this))))
                 {
                     move(right);
                     break;
@@ -268,25 +311,25 @@ void Citizens::doSomething()
                 break;
             case 1:
                 if(x < y)
-                    if(!studentWorld()->determineIntersecting(this, 0, 2) && (distToZ < studentWorld()->determineDistance(0, 2, this, studentWorld()->closestZombie(0, 2, this))))
+                    if(!studentWorld()->determineIntersecting(this, getX(), getY()+moveSpeed()) && (distToZ < studentWorld()->determineDistance(0, 2, this, studentWorld()->closestZombie(0, 2, this))))
                     {
                         move(up);
                         break;
                     }
-                if(!studentWorld()->determineIntersecting(this, 2, 0) && (distToZ < studentWorld()->determineDistance(2, 0, this, studentWorld()->closestZombie(2, 0, this))))
+                if(!studentWorld()->determineIntersecting(this, getX()+moveSpeed(), getY()) && (distToZ < studentWorld()->determineDistance(2, 0, this, studentWorld()->closestZombie(2, 0, this))))
                 {
                     move(right);
                     break;
                 }
                 break;
             case 2:
-                if(x < y)
-                    if(!studentWorld()->determineIntersecting(this, 0, 2) && (distToZ < studentWorld()->determineDistance(0, 2, this, studentWorld()->closestZombie(0, 2, this))))
+                if(y < x)
+                    if(!studentWorld()->determineIntersecting(this, getX(), getY()+moveSpeed()) && (distToZ < studentWorld()->determineDistance(0, 2, this, studentWorld()->closestZombie(0, 2, this))))
                     {
                         move(up);
                         break;
                     }
-                if(!studentWorld()->determineIntersecting(this, -2, 0) && (distToZ < studentWorld()->determineDistance(-2, 0, this, studentWorld()->closestZombie(-2, 0, this))))
+                if(!studentWorld()->determineIntersecting(this, getX()-moveSpeed(), getY()) && (distToZ < studentWorld()->determineDistance(-2, 0, this, studentWorld()->closestZombie(-2, 0, this))))
                 {
                     move(left);
                     break;
@@ -309,7 +352,7 @@ void Citizens::infect()
 void Citizens::save()
 {
     studentWorld()->playSound(SOUND_CITIZEN_SAVED);
-    studentWorld()->increaseScore(1000);
+    studentWorld()->increaseScore(500);
     destroy();
 }
 
@@ -418,7 +461,7 @@ void Citizens::flameDestroy(){studentWorld()->increaseScore(-1000);             
 void smartZombies::flameDestroy(){studentWorld()->increaseScore(2000);studentWorld()->playSound(SOUND_ZOMBIE_DIE); destroy();}
 void dumbZombies::flameDestroy(){studentWorld()->increaseScore(1000);studentWorld()->playSound(SOUND_ZOMBIE_DIE); destroy();}
 
-void Citizens::pitDestroy(){studentWorld()->increaseScore(0);studentWorld()->playSound(SOUND_CITIZEN_DIE);destroy();}
+void Citizens::pitDestroy(){studentWorld()->increaseScore(-1000);studentWorld()->playSound(SOUND_CITIZEN_DIE);destroy();}
 void smartZombies::pitDestroy(){studentWorld()->increaseScore(2000);studentWorld()->playSound(SOUND_ZOMBIE_DIE); destroy();}
 void dumbZombies::pitDestroy(){studentWorld()->increaseScore(1000);studentWorld()->playSound(SOUND_ZOMBIE_DIE); destroy();}
 

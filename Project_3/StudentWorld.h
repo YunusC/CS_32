@@ -29,7 +29,6 @@ public:
     void levelCompleted(){m_levelComplete = true;};
     void decreaseCitizens(){m_numOfCitizens--;};
     void failLevel(){m_levelFailed = true;};
-    void destroy(Object* x);
     bool determineIntersecting(Object* x, double a, double b);
     bool overlap(double x, double y, Object* a, Object* b);
     bool isOverlapping(Object* a);
@@ -54,7 +53,7 @@ private:
     bool overlap(double x, double y);
     void infect(Object* a);
     void save(Object* a);
-    Object* level(int x, int y);
+    Object* level(int x, int y, string levelFile);
     set<Object*>::iterator m_currObject;
     set<Object*> m_objects;
     Penelope* m_p;

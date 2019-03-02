@@ -13,7 +13,7 @@ GameWorld* createStudentWorld(string assetPath)
 // Students:  Add code to this file, StudentWorld.h, Actor.h and Actor.cpp
 
 StudentWorld::StudentWorld(string assetPath)
-: GameWorld(assetPath), m_levelComplete(false), m_levelFailed(false), m_numOfCitizens(0), m_levelNum('1')
+: GameWorld(assetPath), m_levelComplete(false), m_levelFailed(false), m_numOfCitizens(0), m_levelNum(1)
 {
 }
 
@@ -24,19 +24,34 @@ StudentWorld::~StudentWorld()
 
 int StudentWorld::init()
 {
-    if(m_levelNum > '6')
+    Level lev(assetPath());
+    stringstream levelNum;
+    levelNum.fill('0');
+    levelNum << setw(2) << m_levelNum;
+    string levelText = levelNum.str();
+    string levelFile = "level"+levelText+".txt";
+    Level::LoadResult result = lev.loadLevel(levelFile);
+    if (result == Level::load_fail_file_not_found && m_levelNum != 1)
     {
         return GWSTATUS_PLAYER_WON;
+        
     }
-    Object* newObject;
-    for(int x = 0;x < LEVEL_WIDTH;x++)
+    else if (result == Level::load_fail_bad_format)
     {
-        for(int y = 0;y < LEVEL_HEIGHT;y++)
+        return GWSTATUS_LEVEL_ERROR;
+    }
+    else if (result == Level::load_success)
+    {
+        Object* newObject;
+        for(int x = 0;x < LEVEL_WIDTH;x++)
         {
-            newObject = level(x,y);
-            if(newObject != nullptr)
+            for(int y = 0;y < LEVEL_HEIGHT;y++)
             {
-                m_objects.insert(newObject);
+                newObject = level(x, y, levelFile);
+                if(newObject != nullptr)
+                {
+                    m_objects.insert(newObject);
+                }
             }
         }
     }
@@ -90,11 +105,11 @@ int StudentWorld::move()
         m_gameStatStream << setw(6) << getScore();
     }
     m_gameStatStream.fill(' ');
-    m_gameStatStream << "  Level:" << setw(3) << m_levelNum << "  Lives:" << setw(3) << getLives();
-    m_gameStatStream << "  Vacc:" << setw(3) << m_p->numOfVaccines();
-    m_gameStatStream << "  Flames:" << setw(3) << m_p->numOfFlames();
-    m_gameStatStream << "  Mines:" << setw(3) << m_p->numOfLandmines();
-    m_gameStatStream << "  Infected:" << setw(3) << m_p->infectionCount();
+    m_gameStatStream << "  Level: " << setw(2) << m_levelNum << "  Lives: " << setw(2) << getLives();
+    m_gameStatStream << "  Vacc: " << setw(2) << m_p->numOfVaccines();
+    m_gameStatStream << "  Flames: " << setw(2) << m_p->numOfFlames();
+    m_gameStatStream << "  Mines: " << setw(2) << m_p->numOfLandmines();
+    m_gameStatStream << "  Infected: " << setw(3) << m_p->infectionCount();
     m_gameStats = "";
     setGameStatText("");
     m_gameStats = m_gameStatStream.str();
@@ -117,27 +132,11 @@ void StudentWorld::cleanUp()
     }
 }
 
-Object* StudentWorld::level(int x, int y)
+Object* StudentWorld::level(int x, int y, string levelFile)
 {
     Level lev(assetPath());
-    stringstream level;
-    level << m_levelNum;
-    string levelText = level.str();
-    string levelFile = "level0"+levelText+".txt";
-    Level::LoadResult result = lev.loadLevel(levelFile);
-    if (result == Level::load_fail_file_not_found)
-    {
-        cerr << "Cannot find level0"+levelFile+".txt data file" << endl;
-        
-    }
-    else if (result == Level::load_fail_bad_format)
-    {
-        cerr << "Your level was improperly formatted" << endl;
-    }
-    else if (result == Level::load_success)
-    {
-        cerr << "Successfully loaded level" << endl;
-        Level::MazeEntry ge = lev.getContentsOf(x,y); // level_x=5, level_y=10
+    lev.loadLevel(levelFile);
+    Level::MazeEntry ge = lev.getContentsOf(x,y); // level_x=5, level_y=10
         switch (ge) // so x=80 and y=160
         {
             case Level::empty:
@@ -174,19 +173,10 @@ Object* StudentWorld::level(int x, int y)
                 return new Gas(x*SPRITE_WIDTH,y*SPRITE_HEIGHT,this);
                 break;
         }
-    }
     return nullptr;
 }
 
 //excellent way to destroy objects
-void StudentWorld::destroy(Object* x)
-{
-    m_currObject = m_objects.find(x);
-    if(m_currObject == m_objects.end())
-        return;
-    delete *m_currObject;
-    m_objects.erase(m_currObject);
-}
 
 bool StudentWorld::blockMovement(double x1, double y1, Object* a, Object* b)
 {
@@ -348,19 +338,19 @@ void StudentWorld::createFlames(Object* a, Direction dir)
         switch(dir)
         {
             case Character::up:
-                if(overlap(0,i*SPRITE_HEIGHT,a,*x) && !(*x)->canOverlap())
+                if(overlap(0,i*SPRITE_HEIGHT,a,*x) && !(*x)->canFlameOverlap())
                     return;
                 break;
             case Character::down:
-                if(overlap(0,-(i*SPRITE_HEIGHT),a,*x) && !(*x)->canOverlap())
+                if(overlap(0,-(i*SPRITE_HEIGHT),a,*x) && !(*x)->canFlameOverlap())
                     return;
                 break;
             case Character::left:
-                if(overlap(-(i*SPRITE_WIDTH),0,a,*x) && !(*x)->canOverlap())
+                if(overlap(-(i*SPRITE_WIDTH),0,a,*x) && !(*x)->canFlameOverlap())
                     return;
                 break;
             case Character::right:
-                if(overlap(i*SPRITE_WIDTH,0,a,*x) && !(*x)->canOverlap())
+                if(overlap(i*SPRITE_WIDTH,0,a,*x) && !(*x)->canFlameOverlap())
                     return;
                 break;
         }
@@ -436,25 +426,33 @@ void StudentWorld::activateLandmine(Object* a)
 {
     set<Object*>::iterator x;
     x = m_objects.begin();
-    if(x == m_objects.end())
-        return;
+    bool canFlame = true;
     for(int i = -1;i < 2;i++)
         for(int j= -1;j < 2;j++)
         {
             while(x != m_objects.end())
             {
                 if(overlap(i*SPRITE_WIDTH,j*SPRITE_HEIGHT,a,*x) && !(*x)->canOverlap())
-                    break;
+                    {
+                        canFlame = false;
+                        break;
+                    }
                 else
                     x++;
             }
-            m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY()+j*SPRITE_HEIGHT, 90, this));
+            if(canFlame)
+                m_objects.insert(new Flames(a->getX()+i*SPRITE_WIDTH,a->getY()+j*SPRITE_HEIGHT, 90, this));
+            else
+                canFlame = true;
+            x = m_objects.begin();
         }
     m_objects.insert(new Pit(a->getX(),a->getY(),this));
 }
 
 double StudentWorld::determineDistance(double x, double y, Object* a, Object* b)
 {
+    if(b == nullptr)
+        return 6401;
     double deltaX = (a->getX()+x) - b->getX();
     double deltaY = (a->getY()+y) - b->getY();
     return (deltaX*deltaX + deltaY*deltaY);
