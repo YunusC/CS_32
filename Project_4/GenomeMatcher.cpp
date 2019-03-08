@@ -5,8 +5,21 @@
 #include <fstream>
 #include "Trie.h"
 #include <sstream>
+#include <algorithm>
 
 using namespace std;
+
+bool compGenomeMatch(GenomeMatch &a, GenomeMatch &b)
+{
+    if(a.percentMatch < b.percentMatch)
+        return false;
+    if(b.percentMatch < a.percentMatch)
+        return true;
+    if(a.genomeName < b.genomeName)
+        return true;
+    else
+        return false;
+}
 
 class GenomeMatcherImpl
 {
@@ -21,7 +34,9 @@ private:
     vector<Genome> m_genome;
     int m_minSearchLength;
     int m_numOfGenomes;
-    bool DNAMatcher(string genomeValue, const string& targetSequence, int totalLength, int minLength, bool exactMatchOnly, vector<DNAMatch>& matches) const;
+    bool DNAMatcher(string genomeString, const string& targetSequence, int totalLength, int minLength, bool exactMatchOnly, vector<DNAMatch>& matches) const;
+    void genomeStringToValues(int &genomeNum, int &posNum, string genomeString) const;
+    void findRelatedGenomesHelper(vector<string> matchingFragments, double numOfMatches[]) const;
 };
 
 GenomeMatcherImpl::GenomeMatcherImpl(int minSearchLength)
@@ -60,14 +75,7 @@ bool GenomeMatcherImpl::findGenomesWithThisDNA(const string& fragment, int minim
     if(fragment.size() < minimumLength)
         return false;
     vector<string> vecString;
-    if(exactMatchOnly)
-    {
-        vecString = m_genomeTrie.find(fragment.substr(0,minimumSearchLength()), true);
-    }
-    else
-    {
-        vecString = m_genomeTrie.find(fragment.substr(0,minimumSearchLength()),false);
-    }
+    vecString = m_genomeTrie.find(fragment.substr(0,minimumSearchLength()), exactMatchOnly);
     if(vecString.empty())
         return false;
     for(int x = 0;x < vecString.size();x++)
@@ -91,32 +99,62 @@ bool GenomeMatcherImpl::findGenomesWithThisDNA(const string& fragment, int minim
 
 bool GenomeMatcherImpl::findRelatedGenomes(const Genome& query, int fragmentMatchLength, bool exactMatchOnly, double matchPercentThreshold, vector<GenomeMatch>& results) const
 {
-    
-    return false;  // This compiles, but may not be correct
+    bool matchFound = false;
+    double totalFragments = query.length()/fragmentMatchLength;
+    double* numOfMatches = new double[m_genome.size()];
+    double* matchPercents = new double[m_genome.size()];
+    vector<string> matchingFragments;
+    string targetFragment;
+    for(int i = 0;i*fragmentMatchLength < query.length();i++)
+    {
+        query.extract(i*fragmentMatchLength, fragmentMatchLength, targetFragment);
+        matchingFragments = m_genomeTrie.find(targetFragment, exactMatchOnly);
+        findRelatedGenomesHelper(matchingFragments, numOfMatches);
+    }
+    for(int i = 0;i < m_genome.size();i++)
+    {
+        matchPercents[i] = (numOfMatches[i])/totalFragments;
+        if(matchPercents[i] >= matchPercentThreshold)
+        {
+            matchFound = true;
+            results.push_back(GenomeMatch{m_genome[i].name(), matchPercents[i]});
+        }
+    }
+    sort(results.begin(),results.end(),compGenomeMatch);
+    delete [] numOfMatches;
+    delete [] matchPercents;
+    return matchFound;
 }
 
-bool GenomeMatcherImpl::DNAMatcher(string genomeValue, const string& targetSequence, int totalLength, int minLength, bool exactMatchOnly, vector<DNAMatch>& matches) const
+void GenomeMatcherImpl::findRelatedGenomesHelper(vector<string> matchingFragments, double numOfMatches[]) const
+{
+    bool* matchTracker = new bool[m_genome.size()];
+    for(int i = 0;i < m_genome.size();i++)
+        matchTracker[i] = false;
+    vector<string>::iterator i;
+    i = matchingFragments.begin();
+    int genomeNum;
+    int posNum;
+    while(i != matchingFragments.end())
+    {
+        genomeStringToValues(genomeNum, posNum, (*i));
+        if(matchTracker[genomeNum] == false)
+        {
+            matchTracker[genomeNum] = true;
+            numOfMatches[genomeNum]++;
+        }
+        i++;
+    }
+    delete [] matchTracker;
+}
+
+bool GenomeMatcherImpl::DNAMatcher(string genomeString, const string& targetSequence, int totalLength, int minLength, bool exactMatchOnly, vector<DNAMatch>& matches) const
 {
     int genomeNum = 0;
     int posNum = 0;
-    genomeValue = genomeValue.substr(7,genomeValue.size());
-    int i = 0;
-    while(isdigit(genomeValue[i]))
-    {
-        genomeNum *= 10;
-        genomeNum += genomeValue[i] - 48;
-        i++;
-    }
-    while(!isdigit(genomeValue[i]))
-        i++;
-    while(isdigit(genomeValue[i]))
-    {
-        posNum *= 10;
-        posNum += genomeValue[i] - 48;
-        i++;
-    }
+    genomeStringToValues(genomeNum, posNum, genomeString);
     string fragment;
-    m_genome[genomeNum - 1].extract(posNum, totalLength, fragment);
+    m_genome[genomeNum].extract(posNum, totalLength, fragment);
     bool diffChar = exactMatchOnly;
     bool matchFound = false;
     int matchLength = 0;
@@ -144,12 +182,12 @@ bool GenomeMatcherImpl::DNAMatcher(string genomeValue, const string& targetSeque
         i = matches.begin();
         while(i != matches.end())
         {
-            if(m_genome[genomeNum - 1].name() == (*i).genomeName)
+            if(m_genome[genomeNum].name() == (*i).genomeName)
             {
                 if(matchLength > (*i).length)
                 {
                     matches.erase(i);
-                    matches.push_back(DNAMatch{m_genome[genomeNum - 1].name(), matchLength, posNum});
+                    matches.push_back(DNAMatch{m_genome[genomeNum].name(), matchLength, posNum});
                     return true;
                 }
                 if(matchLength == (*i).length)
@@ -157,7 +195,7 @@ bool GenomeMatcherImpl::DNAMatcher(string genomeValue, const string& targetSeque
                     if(posNum < (*i).position)
                     {
                         matches.erase(i);
-                        matches.push_back(DNAMatch{m_genome[genomeNum - 1].name(), matchLength, posNum});
+                        matches.push_back(DNAMatch{m_genome[genomeNum].name(), matchLength, posNum});
                         return true;
                     }
                     return false;
@@ -165,9 +203,30 @@ bool GenomeMatcherImpl::DNAMatcher(string genomeValue, const string& targetSeque
             }
             i++;
         }
-        matches.push_back(DNAMatch{m_genome[genomeNum - 1].name(), matchLength, posNum});
+        matches.push_back(DNAMatch{m_genome[genomeNum].name(), matchLength, posNum});
     }
     return matchFound;
+}
+
+void GenomeMatcherImpl::genomeStringToValues(int &genomeNum, int &posNum, string genomeString) const
+{
+    genomeString = genomeString.substr(7,genomeString.size());
+    int i = 0;
+    while(isdigit(genomeString[i]))
+    {
+        genomeNum *= 10;
+        genomeNum += genomeString[i] - 48;
+        i++;
+    }
+    while(!isdigit(genomeString[i]))
+        i++;
+    while(isdigit(genomeString[i]))
+    {
+        posNum *= 10;
+        posNum += genomeString[i] - 48;
+        i++;
+    }
+    genomeNum--;
 }
 //******************** GenomeMatcher functions ********************************
 
