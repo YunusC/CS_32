@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <set>
 using namespace std;
 
 template<typename ValueType>
@@ -21,12 +22,11 @@ public:
 private:
     struct Node
     {
+        Node(char ID){m_ID = ID;};
+        bool operator<(Node &a);
+        char m_ID;
         vector<ValueType> m_value;
-        Node* A = nullptr;
-        Node* T = nullptr;
-        Node* C = nullptr;
-        Node* G = nullptr;
-        Node* N = nullptr;
+        set<Node*> m_children;
     };
     Node* m_root;
     void destroy(Node* x);
@@ -39,7 +39,7 @@ template<typename ValueType>
 inline
 Trie<ValueType>::Trie()
 {
-    m_root = new Node;
+    m_root = new Node(0);
 }
 
 template<typename ValueType>
@@ -47,6 +47,17 @@ inline
 Trie<ValueType>::~Trie()
 {
     destroy(m_root);
+}
+
+template<typename ValueType>
+inline
+bool Trie<ValueType>::Node::operator<(Node &a)
+{
+    if(a.m_ID < this->m_ID)
+        return false;
+    if(this->m_ID < a.m_ID)
+        return true;
+    return true;
 }
 
 template<typename ValueType>
@@ -66,30 +77,17 @@ void Trie<ValueType>::insert(const std::string& key, const ValueType& value)
     {
         if(nextBase(x, key[i]) == nullptr)
         {
-            switch(key[i])
+            x->m_children.insert(new Node(key[i]));
+            typename set<Node*>::iterator a;
+            a = x->m_children.begin();
+            for(;;)
             {
-                case 'A':
-                    x->A = new Node;
-                    x = x->A;
+                if((*a)->m_ID == key[i])
+                {
+                    x = (*a);
                     break;
-                case 'T':
-                    x->T = new Node;
-                    x = x->T;
-                    break;
-                case 'C':
-                    x->C = new Node;
-                    x = x->C;
-                    break;
-                case 'G':
-                    x->G = new Node;
-                    x = x->G;
-                    break;
-                case 'N':
-                    x->N = new Node;
-                    x = x->N;
-                    break;
-                default:
-                    return;
+                }
+                a++;
             }
         }
         else
@@ -119,7 +117,7 @@ vector<ValueType> Trie<ValueType>::find(const std::string& key, bool exactMatchO
         }
         return x->m_value;
     }
-    else //need to implement this
+    else
     {
         findHelper(key.substr(1,key.length()), exactMatchOnly, answer, nextBase(m_root, key[0]));
         return answer;
@@ -135,52 +133,21 @@ void Trie<ValueType>::findHelper(string key, bool exactMatchOnly, vector<ValueTy
         return;
     if(key == "")
     {
-        cout << "i should be in here once" << endl;
         for(int i = 0;i < x->m_value.size();i++)
         {
-            cout << "this hsould happen tice" << endl;
             answer.push_back(x->m_value[i]);
         }
         return;
     }
-    if(x->A != nullptr)
+    typename set<Node*>::iterator i;
+    i = x->m_children.begin();
+    while(i != x->m_children.end())
     {
-        cout << "this should happen 2 times" << endl;
-        if(nextBase(x, key[0]) == x->A)
-        {
-            findHelper(key.substr(1,key.length()), false, answer, x->A);
-            cout << "this should happen twie" << endl;
-        }
+        if(nextBase(x, key[0]) == (*i))
+            findHelper(key.substr(1,key.length()), false, answer, (*i));
         else
-            findHelper(key.substr(1,key.length()), true, answer, x->A);
-    }
-    if(x->T != nullptr)
-    {
-        if(nextBase(x, key[0]) == x->T)
-            findHelper(key.substr(1,key.length()), false, answer, x->T);
-        else
-            findHelper(key.substr(1,key.length()), true, answer, x->T);
-    }
-    if(x->C != nullptr)
-    {
-        if(nextBase(x, key[0]) == x->C)
-            findHelper(key.substr(1,key.length()), false, answer, x->C);
-        else
-            findHelper(key.substr(1,key.length()), true, answer, x->C);
-    }
-    if(x->G != nullptr)
-    {
-        if(nextBase(x, key[0]) == x->G)
-            findHelper(key.substr(1,key.length()), false, answer, x->G);
-        else
-            findHelper(key.substr(1,key.length()), true, answer, x->G);
-    }
-    if(x->N != nullptr)
-    {
-        if(nextBase(x, key[0]) == x->N)
-            findHelper(key.substr(1,key.length()), false, answer, x->N);
-        else
-            findHelper(key.substr(1,key.length()), true, answer, x->N);
+            findHelper(key.substr(1,key.length()), true, answer, (*i));
+        i++;
     }
 }
 
@@ -190,33 +157,29 @@ void Trie<ValueType>::destroy(Node* x)
 {
     if(x == nullptr)
         return;
-    destroy(x->A);
-    destroy(x->T);
-    destroy(x->C);
-    destroy(x->G);
-    destroy(x->N);
+    typename set<Node*>::iterator i;
+    i = x->m_children.begin();
+    while(i != x->m_children.end())
+    {
+        destroy(*i);
+        i++;
+    }
     delete x;
 }
 
 
 template<typename ValueType>
 inline
-typename Trie<ValueType>::Node* Trie<ValueType>::nextBase(Node* x, char base) const
+typename Trie<ValueType>::Node* Trie<ValueType>::nextBase(Node* x, char alpha) const
 {
-    switch(base)
+    typename set<Node*>::iterator i;
+    i = x->m_children.begin();
+    while(i != x->m_children.end())
     {
-        case 'A':
-            return x->A;
-        case 'T':
-            return x->T;
-        case 'C':
-            return x->C;
-        case 'G':
-            return x->G;
-        case 'N':
-            return x->N;
-        default:
-            return nullptr;
+        if((*i)->m_ID == alpha)
+            return (*i);
+        i++;
     }
+    return nullptr;
 }
 #endif // TRIE_INCLUDED

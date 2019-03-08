@@ -14,31 +14,79 @@ public:
     string name() const;
     bool extract(int position, int length, string& fragment) const;
 private:
+    string m_name;
+    string m_sequence;
+    int m_size;
 };
 
 GenomeImpl::GenomeImpl(const string& nm, const string& sequence)
 {
-    // This compiles, but may not be correct
+    m_name = nm;
+    m_sequence = sequence;
+    m_size = sequence.size();
 }
 
 bool GenomeImpl::load(istream& genomeSource, vector<Genome>& genomes) 
 {
-    return false;  // This compiles, but may not be correct
+    string name;
+    string sequence;
+    char c;
+    genomeSource.get(c);
+    if(c == '>')
+    {
+        getline(genomeSource, name);
+        name = name.substr(1,name.length());
+        if(name == "")
+            return false;
+    }
+    else
+        return false;
+    while(genomeSource.get(c))
+    {
+        switch(c)
+        {
+            case 'A':
+            case 'T':
+            case 'C':
+            case 'G':
+            case 'N':
+                sequence += c;
+                break;
+            case 'a':
+            case 't':
+            case 'c':
+            case 'g':
+            case 'n':
+                sequence += toupper(c);
+                break;
+            default:
+                break;
+        }
+    }
+    genomes.push_back(Genome(name, sequence));
+    return true;  // This compiles, but may not be correct
 }
 
 int GenomeImpl::length() const
 {
-    return 0;  // This compiles, but may not be correct
+    return m_size;  // This compiles, but may not be correct
 }
 
 string GenomeImpl::name() const
 {
-    return "";  // This compiles, but may not be correct
+    return m_name;  // This compiles, but may not be correct
 }
 
 bool GenomeImpl::extract(int position, int length, string& fragment) const
 {
-    return false;  // This compiles, but may not be correct
+    if((position + length) >= m_size)
+        return false;
+    if(length < 0)
+        return false;
+    if(position < 0 || position >= m_size)
+        return false;
+    fragment = m_sequence.substr(position, length);
+    return true;
 }
 
 //******************** Genome functions ************************************
