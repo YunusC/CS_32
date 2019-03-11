@@ -31,20 +31,20 @@ bool GenomeImpl::load(istream& genomeSource, vector<Genome>& genomes)
     string name;
     string sequence;
     char c;
-    genomeSource.get(c);
-    if(c == '>')
-    {
-        getline(genomeSource, name);
-        name = name.substr(1,name.length());
-        if(name == "")
-            return false;
-    }
-    else
-        return false;
     while(genomeSource.get(c))
     {
         switch(c)
         {
+            case '>':
+                if(sequence != "" && name != "")
+                {
+                    genomes.push_back(Genome(name, sequence));
+                    sequence = "";
+                }
+                getline(genomeSource, name);
+                if(name == "")
+                    return false;
+                break;
             case 'A':
             case 'T':
             case 'C':

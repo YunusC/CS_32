@@ -6,6 +6,7 @@
 #include "Trie.h"
 #include <sstream>
 #include <algorithm>
+#include <map>
 
 using namespace std;
 
@@ -32,11 +33,12 @@ public:
 private:
     Trie<string> m_genomeTrie;
     vector<Genome> m_genome;
+    map<string,int> m_genomeNameToNumber;
     int m_minSearchLength;
     int m_numOfGenomes;
     bool DNAMatcher(string genomeString, const string& targetSequence, int totalLength, int minLength, bool exactMatchOnly, vector<DNAMatch>& matches) const;
     void genomeStringToValues(int &genomeNum, int &posNum, string genomeString) const;
-    void findRelatedGenomesHelper(vector<string> matchingFragments, double numOfMatches[]) const;
+    void findRelatedGenomesHelper(vector<DNAMatch> matchingFragments, double numOfMatches[]) const;
 };
 
 GenomeMatcherImpl::GenomeMatcherImpl(int minSearchLength)
@@ -48,11 +50,12 @@ GenomeMatcherImpl::GenomeMatcherImpl(int minSearchLength)
 void GenomeMatcherImpl::addGenome(const Genome& genome)
 {
     m_genome.push_back(genome);
-    int pos = 0;
+    m_genomeNameToNumber[genome.name()] = m_numOfGenomes;
     m_numOfGenomes++;
     string fragment;
     string input;
     ostringstream genomePosition;
+    int pos = 0;
     while(genome.extract(pos, m_minSearchLength, fragment))
     {
         genomePosition << "Genome " << m_numOfGenomes << ", position " << pos;
@@ -78,10 +81,6 @@ bool GenomeMatcherImpl::findGenomesWithThisDNA(const string& fragment, int minim
     vecString = m_genomeTrie.find(fragment.substr(0,minimumSearchLength()), exactMatchOnly);
     if(vecString.empty())
         return false;
-    for(int x = 0;x < vecString.size();x++)
-    {
-        cout << vecString[x] << endl;
-    }
     matches.clear();
     bool matchFound = false;
     vector<string>::iterator i;
@@ -99,21 +98,30 @@ bool GenomeMatcherImpl::findGenomesWithThisDNA(const string& fragment, int minim
 
 bool GenomeMatcherImpl::findRelatedGenomes(const Genome& query, int fragmentMatchLength, bool exactMatchOnly, double matchPercentThreshold, vector<GenomeMatch>& results) const
 {
+    if(fragmentMatchLength < minimumSearchLength())
+        return false;
     bool matchFound = false;
     double totalFragments = query.length()/fragmentMatchLength;
     double* numOfMatches = new double[m_genome.size()];
     double* matchPercents = new double[m_genome.size()];
-    vector<string> matchingFragments;
-    string targetFragment;
-    for(int i = 0;i*fragmentMatchLength < query.length();i++)
-    {
-        query.extract(i*fragmentMatchLength, fragmentMatchLength, targetFragment);
-        matchingFragments = m_genomeTrie.find(targetFragment, exactMatchOnly);
-        findRelatedGenomesHelper(matchingFragments, numOfMatches);
-    }
     for(int i = 0;i < m_genome.size();i++)
     {
-        matchPercents[i] = (numOfMatches[i])/totalFragments;
+        numOfMatches[i] = 0;
+        matchPercents[i] = 0;
+    }
+    vector<DNAMatch> matchingFragments;
+    string targetFragment;
+    for(int i = 0;i < totalFragments;i++)
+    {
+        query.extract(i*fragmentMatchLength, fragmentMatchLength, targetFragment);
+        matchingFragments.clear();
+        this->findGenomesWithThisDNA(targetFragment, this->minimumSearchLength(), exactMatchOnly, matchingFragments);
+        findRelatedGenomesHelper(matchingFragments, numOfMatches);
+    }
+    results.clear();
+    for(int i = 0;i < m_genome.size();i++)
+    {
+        matchPercents[i] = 100*((numOfMatches[i])/totalFragments);
         if(matchPercents[i] >= matchPercentThreshold)
         {
             matchFound = true;
@@ -126,22 +134,21 @@ bool GenomeMatcherImpl::findRelatedGenomes(const Genome& query, int fragmentMatc
     return matchFound;
 }
 
-void GenomeMatcherImpl::findRelatedGenomesHelper(vector<string> matchingFragments, double numOfMatches[]) const
+void GenomeMatcherImpl::findRelatedGenomesHelper(vector<DNAMatch> matchingFragments, double numOfMatches[]) const
 {
     bool* matchTracker = new bool[m_genome.size()];
     for(int i = 0;i < m_genome.size();i++)
         matchTracker[i] = false;
-    vector<string>::iterator i;
+    vector<DNAMatch>::iterator i;
     i = matchingFragments.begin();
-    int genomeNum;
-    int posNum;
+    map<string,int>::const_iterator mapIt;
     while(i != matchingFragments.end())
     {
-        genomeStringToValues(genomeNum, posNum, (*i));
-        if(matchTracker[genomeNum] == false)
+        mapIt = m_genomeNameToNumber.find((*i).genomeName);
+        if(matchTracker[mapIt->second] == false)
         {
-            matchTracker[genomeNum] = true;
-            numOfMatches[genomeNum]++;
+            matchTracker[mapIt->second] = true;
+            numOfMatches[mapIt->second]++;
         }
         i++;
     }
@@ -154,7 +161,8 @@ bool GenomeMatcherImpl::DNAMatcher(string genomeString, const string& targetSequ
     int posNum = 0;
     genomeStringToValues(genomeNum, posNum, genomeString);
     string fragment;
-    m_genome[genomeNum].extract(posNum, totalLength, fragment);
+    if(!m_genome[genomeNum].extract(posNum, totalLength, fragment))
+       return false;
     bool diffChar = exactMatchOnly;
     bool matchFound = false;
     int matchLength = 0;
@@ -170,7 +178,7 @@ bool GenomeMatcherImpl::DNAMatcher(string genomeString, const string& targetSequ
                     matchFound = true;
                 continue;
             }
-            return false;
+            break;
         }
         matchLength++;
         if(matchLength == minLength)
